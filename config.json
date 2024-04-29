@@ -1,0 +1,18 @@
+{
+    "dataset": "./data/adult/adult.csv",
+    "domain": "./data/adult/adult.json",
+    "epsilon": 1,
+    "delta": 1e-9,
+    "max_model_size": 80.0,
+    "degree": 2,
+    "num_marginals": null,
+    "max_cells": 10000,
+    "save": "./data/adult/synth.csv",
+    "cliques": "./data/cliques.csv",
+    "lastsyn": null,
+    "eta": null,
+    "mech": "aim",
+    "rounds": null,
+    "pgm_iters": 250,
+    "error_method":"aae"
+  }

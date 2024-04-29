@@ -1,0 +1,10 @@
+venv/
+Results/
+tests/
+magicword.txt
+data/prefercliques
+__pycache__/
+ismechanisms/rebundant.py
+Information/
+*synth*.csv
+data/cliques.csv
