@@ -15,6 +15,7 @@ These files also have two additional dependencies: [Ektelo](https://github.com/e
 * data - Contains datasets, selected cliques produced in the original data synthesis, and preferred cliques.
 * src - Contains some dependencies of PGM-based mechanisms.
 * UDF - Contains example UDFs. 
+* EveSyn.py - Gives an example of how to organize an EveSyn experiment.
 
 ## Usage
 
@@ -32,6 +33,7 @@ $ pip install -r requirements.txt
 $Env:PYTHONPATH += ";X:\EveSyn\src"
 ```
 4. Run the mechanism in ```mechanisms``` for original data synthesis (OriginalSyn), then run the corresponding mechanism under ```evmechanisms```.
+The EveSyn.py also gives an example that how to organize a one-click experiments with ```config.json```.
 
 ## Utility usage
 * ```\evmechanisms\werror.py``` - Calculate the workload error for a given hitory-related attributes file ```prefer.csv```.
