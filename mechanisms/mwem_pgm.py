@@ -9,11 +9,11 @@ import argparse
 import time
 import pickle
 import random
-import ismechanisms.istools
+import evmechanisms.evtools
 
 
 """
-This file contains a IncreSyn construction example in the initialization phase.
+This file contains a EveSyn construction example in the initialization phase.
 For more details of Private-PGM and its implemention, please visit
 https://github.com/ryan112358/private-pgm
 """
@@ -85,9 +85,9 @@ def mwem_pgm(data, epsilon,cliquesave,delta=0.0, workload=None, rounds=None, max
     engine = FactoredInference(data.domain, log=False, iters=pgm_iters, warm_start=True)
     measurements = []
     if log_file == None:
-        log_file = ismechanisms.istools.info_logger("======MECH START======")
+        log_file = evmechanisms.evtools.info_logger("======MECH START======")
     est = engine.estimate(measurements, total)
-    cliques = [] #IncreSyn: Initialized for cliques save
+    cliques = [] #EveSyn: Initialized for cliques save
 
     # time_start = time.time()
     for i in range(1, rounds+1):
@@ -96,7 +96,7 @@ def mwem_pgm(data, epsilon,cliquesave,delta=0.0, workload=None, rounds=None, max
         ax = worst_approximated(workload_answers, est, candidates, exp_eps)
         # print('Round', i, 'Selected', ax, 'Model Size (MB)', est.size*8/2**20)
         info = '[V] Round' + str(i) + 'Selected' + str(ax) + "Model Size (MB)" + str(est.size*8/2**20)
-        ismechanisms.istools.info_logger(info, log_file[0], log_file[1])
+        evmechanisms.evtools.info_logger(info, log_file[0], log_file[1])
         n = domain.size(ax)
         x = data.project(ax).datavector()
         if noise == 'laplace':
@@ -115,9 +115,9 @@ def mwem_pgm(data, epsilon,cliquesave,delta=0.0, workload=None, rounds=None, max
   
     if cliquesave is not '0':
         cliquepd = pd.DataFrame(cliques,columns=None)
-        cliquepd.to_csv(cliquesave+"/cliques.csv",index=False) #IncreSyn: Save all selected cliques for the update phase
+        cliquepd.to_csv(cliquesave+"/cliques.csv",index=False) #EveSyn: Save all selected cliques for the update phase
 
-    ismechanisms.istools.info_logger('[V] Generating Data...', log_file[0],log_file[1])
+    evmechanisms.evtools.info_logger('[V] Generating Data...', log_file[0],log_file[1])
     # print('Generating Data...')
     return est.synthetic_data()
 

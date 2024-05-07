@@ -12,7 +12,7 @@ from scipy.special import softmax
 from scipy import sparse
 from mechanisms.cdp2adp import cdp_rho
 import random
-import ismechanisms.istools
+import evmechanisms.evtools
 
 def eta_test(data, lastsyn_load, syn, workload):
     """
@@ -58,9 +58,9 @@ def compile_workload(workload):
         return sum(len(set(cl)&set(ax)) for ax in workload)
     return { cl : score(cl) for cl in downward_closure(workload) }
 
-class is_AIM(Mechanism):
+class ev_AIM(Mechanism):
     def __init__(self,epsilon,delta,lastsyn_load,eta_max, prng=None,rounds=None,max_model_size=80,structural_zeros={},cliques_in = "./data/cliques.csv",log_file = None):  
-        super(is_AIM, self).__init__(epsilon, delta, prng)
+        super(ev_AIM, self).__init__(epsilon, delta, prng)
         self.rounds = rounds
         self.max_model_size = max_model_size
         self.structural_zeros = structural_zeros
@@ -86,17 +86,17 @@ class is_AIM(Mechanism):
 
     def run(self, data, W):
         
-        rounds = self.rounds or 16*len(data.domain) #IncreSyn: Here we using the original rounds limit, to achieve same 1-way calc budget
-        eta = 1 # IncreSyn: Initialzed an eta = 1
+        rounds = self.rounds or 16*len(data.domain) #EveSyn: Here we using the original rounds limit, to achieve same 1-way calc budget
+        eta = 1 # EveSyn: Initialzed an eta = 1
 
         cliques = []
-        cliquepd = pd.read_csv(self.cliques_in).values.tolist() #IncreSyn: Get selected cliques
+        cliquepd = pd.read_csv(self.cliques_in).values.tolist() #EveSyn: Get selected cliques
         for line in cliquepd:
             if line[1] is np.nan:
                 cliques.append((line[0],))
             else:
                 cliques.append(tuple(line))
-        #IncreSyn:Load prefer cliques from file
+        #EveSyn:Load prefer cliques from file
         prefer_pd =  pd.read_csv("./data/prefer.csv").values.tolist()
         for line in prefer_pd:
             if line[1] is np.nan:
@@ -120,12 +120,12 @@ class is_AIM(Mechanism):
 
         measurements = []
         if self.log_file == None:
-            log_file = ismechanisms.istools.info_logger("======MECH START======")
+            log_file = evmechanisms.evtools.info_logger("======MECH START======")
         else:
             log_file = self.log_file
         
         # print('Initial Sigma', sigma)
-        ismechanisms.istools.info_logger('[V] Initial Sigma'+str(sigma), log_file[0], log_file[1])
+        evmechanisms.evtools.info_logger('[V] Initial Sigma'+str(sigma), log_file[0], log_file[1])
         rho_used += len(oneway)*0.5/sigma**2 
         for cl in oneway:
             x = data.project(cl).datavector()
@@ -139,20 +139,20 @@ class is_AIM(Mechanism):
         terminate = False
         
         remaining = self.rho - rho_used
-        # IncreSyn: After the completion of a 1-way measurements, we reset the maximum number of rounds to be equal to the total length of cliques (with prefer attributes), in order to avoid allocating too much budget for 1-way measurements. 
+        # EveSyn: After the completion of a 1-way measurements, we reset the maximum number of rounds to be equal to the total length of cliques (with prefer attributes), in order to avoid allocating too much budget for 1-way measurements. 
         # Once this is set, the subsequent process can be considered as allocating a fixed budget per round.
         if self.lastsyn_load is None:
             rounds = len(cliques)
         else:
             rounds = len(cliques)+eta
-        sigma = np.sqrt(rounds / (2 * remaining)) #IncreSyn: Re-design sigma
+        sigma = np.sqrt(rounds / (2 * remaining)) #EveSyn: Re-design sigma
          #print("!!!Re-design sigma after one-way!")
         #print("New sigma:",sigma)
-        ismechanisms.istools.info_logger('[V] !!!Re-design sigma after one-way!', log_file[0], log_file[1])
-        ismechanisms.istools.info_logger('[V] New sigma:'+str(sigma), log_file[0], log_file[1])
+        evmechanisms.evtools.info_logger('[V] !!!Re-design sigma after one-way!', log_file[0], log_file[1])
+        evmechanisms.evtools.info_logger('[V] New sigma:'+str(sigma), log_file[0], log_file[1])
         
 
-          #IncreSyn: When the last synthetic data is given, run the select step once
+          #EveSyn: When the last synthetic data is given, run the select step once
         if self.lastsyn_load is not None: 
             print('Last synthetic data detected, adding selection')
             epsilon = np.sqrt(8*0.1*self.rho/rounds)
@@ -164,7 +164,7 @@ class is_AIM(Mechanism):
                 else:
                     rounds = rounds-1
             remaining = remaining - 1/sigma**2 
-            sigma = np.sqrt(rounds / (2 * remaining))  #IncreSyn: Re-design sigma after selection
+            sigma = np.sqrt(rounds / (2 * remaining))  #EveSyn: Re-design sigma after selection
             print("!!!Re-design sigma after selection!")
             print("New sigma:",sigma)
         
@@ -172,15 +172,15 @@ class is_AIM(Mechanism):
         while t < rounds and not terminate:
             t += 1
             cl = None
-            if (self.rho - rho_used <0.5/sigma**2): #IncreSyn: Change the limitation
+            if (self.rho - rho_used <0.5/sigma**2): #EveSyn: Change the limitation
                 # Just use up whatever remaining budget there is for one last round
                 remaining = self.rho - rho_used
                 sigma = np.sqrt(1 / (2*0.9*remaining))
                 # We do not needs epsilon here
                 # epsilon = np.sqrt(8*0.1*remaining) 
                 terminate = True
-            rho_used += 0.5/sigma**2 #IncreSyn: Remove epsilon here
-            cl = cliques[t-1]        #IncreSyn: Switch the original select method to reading selected cliques line by line.
+            rho_used += 0.5/sigma**2 #EveSyn: Remove epsilon here
+            cl = cliques[t-1]        #EveSyn: Switch the original select method to reading selected cliques line by line.
             n = data.domain.size(cl)
             Q = Identity(n)
             x = data.project(cl).datavector()
@@ -188,19 +188,19 @@ class is_AIM(Mechanism):
             measurements.append((Q, y, sigma, cl))
 
             # print('Selected',cl,'Size',n,'Budget Used',rho_used/self.rho)
-            ismechanisms.istools.info_logger('[V] Selected'+str(cl)+'Size'+str(n)+'Budget Used'+str(rho_used/self.rho), log_file[0], log_file[1])
+            evmechanisms.evtools.info_logger('[V] Selected'+str(cl)+'Size'+str(n)+'Budget Used'+str(rho_used/self.rho), log_file[0], log_file[1])
 
 
-        ismechanisms.istools.info_logger('[V] Total rounds:'+str(t), log_file[0], log_file[1])
+        evmechanisms.evtools.info_logger('[V] Total rounds:'+str(t), log_file[0], log_file[1])
         # print("Total rounds:",t)
         engine.iters = 2500
-        model = engine.estimate(measurements) #IncreSyn: Move the estimation outside of the iteration.
+        model = engine.estimate(measurements) #EveSyn: Move the estimation outside of the iteration.
 
         # print('Generating Data...')
-        ismechanisms.istools.info_logger('[V] Generating Data...', log_file[0], log_file[1])
+        evmechanisms.evtools.info_logger('[V] Generating Data...', log_file[0], log_file[1])
         synth = model.synthetic_data()
         if self.lastsyn_load is not None:
-            error_comp = eta_test(data=data, lastsyn_load=self.lastsyn_load, syn=synth, workload=workload) #IncreSyn:Test for whether eta should gets bigger or not
+            error_comp = eta_test(data=data, lastsyn_load=self.lastsyn_load, syn=synth, workload=workload) #EveSyn:Test for whether eta should gets bigger or not
             if (error_comp == 1) and eta < self.eta_max:
                 eta +=1
                 print("Eta increased to "+str(eta))
@@ -232,7 +232,7 @@ def worst_approximated_eta_mwem(workload_answers, est, workload, eps, eta, penal
         choice_cl.append(workload[key])
     return choice_cl
 
-def is_mwem(data,epsilon, lastsyn_load, delta=0.0, cliques_in=None,rounds=None, workload = None, maxsize_mb = 25, pgm_iters=100, noise='laplace', eta_max=5, log_file = None):
+def ev_mwem(data,epsilon, lastsyn_load, delta=0.0, cliques_in=None,rounds=None, workload = None, maxsize_mb = 25, pgm_iters=100, noise='laplace', eta_max=5, log_file = None):
 
     """
     Implementation of a dynamic update version of MWEM+PGM
@@ -251,23 +251,23 @@ def is_mwem(data,epsilon, lastsyn_load, delta=0.0, cliques_in=None,rounds=None, 
     - During each round of MWEM, one clique will be selected for measurement, but only if measuring the clique does
         not increase size of the graphical model too much
     """ 
-    eta = 1 # IncreSyn: Initialzed an eta = 1
+    eta = 1 # EveSyn: Initialzed an eta = 1
     if workload is None:
         workload = list(itertools.combinations(data.domain, 2))
     
-    answers = { cl : data.project(cl).datavector() for cl in workload } #IncreSyn: Get workload answers
+    answers = { cl : data.project(cl).datavector() for cl in workload } #EveSyn: Get workload answers
 
     cliques = []
-    cliquepd = pd.read_csv(cliques_in).values.tolist() #IncreSyn:Get selected cliques
+    cliquepd = pd.read_csv(cliques_in).values.tolist() #EveSyn:Get selected cliques
     for line in cliquepd:
         cliques.append(tuple(line)) 
-    #IncreSyn:Add prefer cliques
+    #EveSyn:Add prefer cliques
     prefer_cliques = []
-    #IncreSyn:Load prefer cliques from file
-    prefer_pd = pd.read_csv("./data/prefer.csv").values.tolist() #IncreSyn: Get prefer cliques
+    #EveSyn:Load prefer cliques from file
+    prefer_pd = pd.read_csv("./data/prefer.csv").values.tolist() #EveSyn: Get prefer cliques
     for line in prefer_pd:
             prefer_cliques.append(tuple(line))
-    #IncreSyn:Add prefer cliques to original cliques
+    #EveSyn:Add prefer cliques to original cliques
     cliques += prefer_cliques
 
     if rounds is None:
@@ -295,11 +295,11 @@ def is_mwem(data,epsilon, lastsyn_load, delta=0.0, cliques_in=None,rounds=None, 
     engine = FactoredInference(data.domain, log=False, iters=pgm_iters, warm_start=True)
     measurements = []
     if log_file == None:
-        log_file = ismechanisms.istools.info_logger("======MECH START======")
+        log_file = evmechanisms.evtools.info_logger("======MECH START======")
     else:
-        ismechanisms.istools.info_logger("======MECH START======", log_file[0], log_file[1])
+        evmechanisms.evtools.info_logger("======MECH START======", log_file[0], log_file[1])
 
-    #IncreSyn: When the last synthetic data is given, run the select step once
+    #EveSyn: When the last synthetic data is given, run the select step once
     if lastsyn_load is not None: 
         print('Last synthetic data detected, adding selection')
         choice_cl = worst_approximated_eta_mwem(workload_answers = answers, est = lastsyn_load, workload = workload, eta=eta, eps = exp_eps)
@@ -311,13 +311,13 @@ def is_mwem(data,epsilon, lastsyn_load, delta=0.0, cliques_in=None,rounds=None, 
                 rounds = rounds-1
         
         eps_per_round = (epsilon - exp_eps) / (2 * rounds)
-        sigma = 1.0 / eps_per_round #IncreSyn: Re-calculate sigma
+        sigma = 1.0 / eps_per_round #EveSyn: Re-calculate sigma
 
     for i in range(1, rounds+1):
-        ax = cliques[i-1] #IncreSyn: Switch the original select method to reading selected cliques line by line.
+        ax = cliques[i-1] #EveSyn: Switch the original select method to reading selected cliques line by line.
         # print('Round', i, 'Selected', ax, "Eps per round =",eps_per_round)
         info = '[V] Round' + str(i) + 'Selected' + str(ax) + "Eps per round =" + str(eps_per_round)
-        ismechanisms.istools.info_logger(info, log_file[0], log_file[1])
+        evmechanisms.evtools.info_logger(info, log_file[0], log_file[1])
         n = domain.size(ax)
         x = data.project(ax).datavector()
         if noise == 'laplace':
@@ -326,12 +326,12 @@ def is_mwem(data,epsilon, lastsyn_load, delta=0.0, cliques_in=None,rounds=None, 
             y = x + np.random.normal(loc=0, scale=marginal_sensitivity*sigma, size=n)
         Q = sparse.eye(n)
         measurements.append((Q, y, 1.0, ax))
-    est = engine.estimate(measurements, total) #IncreSyn: Move the estimation outside of the iteration.
-    ismechanisms.istools.info_logger('[V] Generating Data...', log_file[0],log_file[1])
+    est = engine.estimate(measurements, total) #EveSyn: Move the estimation outside of the iteration.
+    evmechanisms.evtools.info_logger('[V] Generating Data...', log_file[0],log_file[1])
     # print('Generating Data...')
     syn = est.synthetic_data()
     if lastsyn_load is not None:
-        error_comp = eta_test(data=data, lastsyn_load=lastsyn_load, syn=syn, workload=workload) #IncreSyn:Test for whether eta should gets bigger or not
+        error_comp = eta_test(data=data, lastsyn_load=lastsyn_load, syn=syn, workload=workload) #EveSyn:Test for whether eta should gets bigger or not
         if (error_comp == 1) and eta < eta_max:
             eta +=1
             print("Eta increased to "+str(eta))

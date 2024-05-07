@@ -1,8 +1,8 @@
-# IncreSyn: An Efficient Framework for Incremental Differentially Private Synthetic Data
+# EveSyn: Enhancing Utility of Differentially Private Synthetic Data over Dynamic Database with Efficient Updates
 
 ## Introduction
 
-This code base contains two construction examples of IncreSyn, constructed with two state-of-art iterative data synthesis mechanisms based on graph model, the MWEM+PGM and AIM.
+This code base contains two implemention examples of EveSyn, implemented with two state-of-art PGM-based data synthesis mechanisms based on graph model as the OriginalSyn function, the MWEM+PGM and AIM.
 
 For more details on Private-PGM, please visit [Private-PGM](https://github.com/ryan112358/private-pgm).
 
@@ -10,8 +10,8 @@ These files also have two additional dependencies: [Ektelo](https://github.com/e
 
 ## File structure
 
-* mechanisms - Contains IncreSyn constructions which are modified for the original data synthesis of IncreSyn.
-* is-mechanisms - Contains IncreSyn constructions for the incremetal data synthesis and some dataset utility tools.
+* mechanisms - Contains EveSyn constructions which are modified for the original data synthesis of EveSyn.
+* evmechanisms - Contains EveSyn constructions for the incremetal data synthesis and some dataset utility tools.
 * data - Contains datasets, selected cliques produced in the original data synthesis, and preferred cliques.
 * src - Contains some dependencies of PGM-based mechanisms.
 * UDF - Contains example UDFs. 
@@ -29,12 +29,12 @@ $ pip install -r requirements.txt
 ```
 3. Export the ```src``` file to path. For example, in Windows, you may use:
 ```
-$Env:PYTHONPATH += ";X:\IncreSyn\src"
+$Env:PYTHONPATH += ";X:\EveSyn\src"
 ```
-4. Run the mechanism in ```mechanisms``` for original data synthesis, then run the corresponding mechanism under ```is-mechanisms```.
+4. Run the mechanism in ```mechanisms``` for original data synthesis (OriginalSyn), then run the corresponding mechanism under ```evmechanisms```.
 
 ## Utility usage
-* ```\is-mechanisms\werror.py``` - Calculate the workload error for a given preferred attributes file ```prefer.csv```.
+* ```\evmechanisms\werror.py``` - Calculate the workload error for a given hitory-related attributes file ```prefer.csv```.
 
 ## UDF usage
 See ```README.md``` in ```/UDF```.

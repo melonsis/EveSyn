@@ -9,14 +9,14 @@ import pandas as pd
 from mbi import Factor
 import argparse
 import time
-import ismechanisms.istools
+import evmechanisms.evtools
 
 """
-This file contains a IncreSyn construction example in the update phase.
+This file contains a EveSyn construction example in the update phase.
 For more details of Private-PGM and its implemention, please visit
 https://github.com/ryan112358/private-pgm
 
-Before using this or any other mechanisms in IncreSyn, make sure you have
+Before using this or any other mechanisms in EveSyn, make sure you have
 already prepared source code of hdmm and mbi for dependences and put the "src" 
 folder's path to PYTHONPATH.
 """
@@ -87,17 +87,17 @@ class AIM(Mechanism):
        
         measurements = []
         if self.log_file == None:
-            log_file = ismechanisms.istools.info_logger("======MECH START======")
+            log_file = evmechanisms.evtools.info_logger("======MECH START======")
         else:
             log_file = self.log_file
-            ismechanisms.istools.info_logger("======MECH START======", log_file[0], log_file[1])
-        cliques = [] #IncreSyn:For clique save
+            evmechanisms.evtools.info_logger("======MECH START======", log_file[0], log_file[1])
+        cliques = [] #EveSyn:For clique save
 
         time_start = time.time()
         # print(self.rho)
-        ismechanisms.istools.info_logger('[V] Rho:'+str(self.rho), log_file[0], log_file[1])
+        evmechanisms.evtools.info_logger('[V] Rho:'+str(self.rho), log_file[0], log_file[1])
         # print('Initial Sigma', sigma)
-        ismechanisms.istools.info_logger('[V] Initial Sigma'+str(sigma), log_file[0], log_file[1]) 
+        evmechanisms.evtools.info_logger('[V] Initial Sigma'+str(sigma), log_file[0], log_file[1]) 
         rho_used = len(oneway)*0.5/sigma**2 
         for cl in oneway:
             x = data.project(cl).datavector()
@@ -139,11 +139,11 @@ class AIM(Mechanism):
             model = engine.estimate(measurements) 
             w = model.project(cl).datavector()
             # print('Selected',cl,'Size',n,'Budget Used',rho_used/self.rho)
-            ismechanisms.istools.info_logger('[V] Selected'+str(cl)+'Size'+str(n)+'Budget Used'+str(rho_used/self.rho), log_file[0], log_file[1])
+            evmechanisms.evtools.info_logger('[V] Selected'+str(cl)+'Size'+str(n)+'Budget Used'+str(rho_used/self.rho), log_file[0], log_file[1])
             
             if np.linalg.norm(w-z, 1) <= sigma*np.sqrt(2/np.pi)*n: 
                 # print('(!!!!!!!!!!!!!!!!!!!!!!) Reducing sigma', sigma/2)
-                ismechanisms.istools.info_logger('(!!!!!!!!!!!!!!!!!!!!!!) Reducing sigma'+str(sigma/2), log_file[0], log_file[1])
+                evmechanisms.evtools.info_logger('(!!!!!!!!!!!!!!!!!!!!!!) Reducing sigma'+str(sigma/2), log_file[0], log_file[1])
                 sigma /= 2
                 epsilon *= 2
 
@@ -158,11 +158,11 @@ class AIM(Mechanism):
 
         if cliquesave is not '0':
             cliquepd = pd.DataFrame(cliques,columns=None)
-            cliquepd.to_csv(cliquesave+"/cliques.csv",index=False) #IncreSyn: Save all selected cliques
+            cliquepd.to_csv(cliquesave+"/cliques.csv",index=False) #EveSyn: Save all selected cliques
         
 
         #print('Generating Data...')
-        ismechanisms.istools.info_logger('[V] Generating Data...', log_file[0], log_file[1])
+        evmechanisms.evtools.info_logger('[V] Generating Data...', log_file[0], log_file[1])
         synth = model.synthetic_data()
 
         return synth

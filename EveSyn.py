@@ -1,6 +1,6 @@
-import ismechanisms.ismech
-import ismechanisms.istools
-import ismechanisms.isexp
+import evmechanisms.evmech
+import evmechanisms.evtools
+import evmechanisms.evexp
 import argparse
 from mbi import Dataset, Domain
 import pandas as pd
@@ -101,19 +101,24 @@ if __name__ == "__main__":
     attr_name.append("UniversalError")
     attr_name.append("PreferedError")
     attr_name.append("TimeConsume")
-    log_file_name = ismechanisms.istools.log_init(attr_name=attr_name)
-    log_file = ismechanisms.istools.info_logger("======Experiment START======")
-    mech_para = ismechanisms.isexp.args_handler(args, args.epsilon,log_file=log_file) # 这里的epsilon是为了方便后续实验使用不同的预算输入
+    log_file_name = evmechanisms.evtools.log_init(attr_name=attr_name)
+    log_file = evmechanisms.evtools.info_logger("======Experiment START======")
+    mech_para = evmechanisms.evexp.args_handler(args, args.epsilon,log_file=log_file) # This epsilon is for iteration experiments
     exp_results = []
     dataset_name = "Adult"
     
     print("Starting exp round 1...",end="",flush=True)
     
-    # exp_results = ismechanisms.isexp.exp_single(mech_para=mech_para, mech_type=args.mech, data=data,workload=workload)
-    # exp_results = ismechanisms.isexp.original_syn(mech_para=mech_para, mech_type=args.mech, data=data,workload=workload)
-    exp_results = ismechanisms.isexp.original_syn_aae(mech_para=mech_para, mech_type=args.mech, data=data,workload=workload)
-    exp_results.insert(0, dataset_name)
-    ismechanisms.istools.log_append(exp_results, log_file_name[0], log_file_name[1])
+    exp_results = evmechanisms.evexp.original_syn_aae(mech_para=mech_para, mech_type=args.mech, data=data,workload=workload)
+    exp_results = evmechanisms.evexp.exp_single(mech_para=mech_para, )
+    exp_results.insert(0, dataset_name+"_Original")
+    evmechanisms.evtools.log_append(exp_results, log_file_name[0], log_file_name[1])
+
+    
+    exp_results = evmechanisms.evexp.exp_single(mech_para=mech_para, mech_type=args.mech, data=data,workload=workload,error_method=args.error_method)
+    exp_results.insert(0, str(args.epsilon))
+    exp_results.insert(0, dataset_name+"_Optimized")
+    evmechanisms.evtools.log_append(exp_results, log_file_name[0], log_file_name[1])
     print("Done")
 
 
