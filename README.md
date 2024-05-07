@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This code base contains two implemention examples of EveSyn, implemented with two state-of-art PGM-based data synthesis mechanisms based on graph model as the OriginalSyn function, the MWEM+PGM and AIM.
+This code base contains two implementation examples of EveSyn, implemented with two state-of-the-art PGM-based data synthesis mechanisms based on graph model as the OriginalSyn function, which are the MWEM+PGM and AIM.
 
 For more details on Private-PGM, please visit [Private-PGM](https://github.com/ryan112358/private-pgm).
 
@@ -11,7 +11,7 @@ These files also have two additional dependencies: [Ektelo](https://github.com/e
 ## File structure
 
 * mechanisms - Contains EveSyn constructions which are modified for the original data synthesis of EveSyn.
-* evmechanisms - Contains EveSyn constructions for the incremetal data synthesis and some dataset utility tools.
+* evmechanisms - Contains EveSyn constructions for the updated data synthesis and some dataset utility tools.
 * data - Contains datasets, selected cliques produced in the original data synthesis, and preferred cliques.
 * src - Contains some dependencies of PGM-based mechanisms.
 * UDF - Contains example UDFs. 
@@ -33,7 +33,7 @@ $ pip install -r requirements.txt
 $Env:PYTHONPATH += ";X:\EveSyn\src"
 ```
 4. Run the mechanism in ```mechanisms``` for original data synthesis (OriginalSyn), then run the corresponding mechanism under ```evmechanisms```.
-The EveSyn.py also gives an example that how to organize a one-click experiments with ```config.json```.
+The EveSyn.py also gives an example of how to organize a one-click experiment with ```config.json```.
 
 ## Utility usage
 * ```\evmechanisms\werror.py``` - Calculate the workload error for a given hitory-related attributes file ```prefer.csv```.
