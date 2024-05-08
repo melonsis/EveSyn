@@ -35,8 +35,5 @@ $Env:PYTHONPATH += ";X:\EveSyn\src"
 4. Run the mechanism in ```mechanisms``` for original data synthesis (OriginalSyn), then run the corresponding mechanism under ```evmechanisms```.
 The EveSyn.py also gives an example of how to organize a one-click experiment with ```config.json```.
 
-## Utility usage
-* ```\evmechanisms\werror.py``` - Calculate the workload error for a given hitory-related attributes file ```prefer.csv```.
-
 ## UDF usage
 See ```README.md``` in ```/UDF```.

@@ -90,8 +90,6 @@ if __name__ == "__main__":
     if args.mech == "aim":
         workload = [(cl, 1.0) for cl in workload]
     
-
-
     # Init log file
     attr_name = []
     attr_name.append("Dataset")
