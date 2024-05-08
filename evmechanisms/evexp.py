@@ -8,56 +8,68 @@ import mechanisms.mwem_pgm
 # Mech_para: DICT
 # ArgList: 
 #   Mechnism basic:
-#       epsilon(from exp), delta, lastsyn_load, max_model_size
-#       cliques_in, eta_max, rounds, pgm_iters, save
+#       epsilon(from exp), delta,max_model_size
+#       cliques_in, rounds, pgm_iters, save
 #   Exp:
 #       budgets, del_percent, incre_percent, incre_count
 def exp_single(mech_para:dict, mech_type, data, workload, error_method):
     epsilon = mech_para['budgets']
     delta = mech_para['delta']
-    lastsyn_load = mech_para['lastsyn_load']
     max_model_size = mech_para['max_model_size']
     cliques_in = mech_para['cliques_in']
-    eta_max = mech_para['eta_max']
     rounds = mech_para['rounds']
     pgm_iters = mech_para['pgm_iters']
     save = mech_para['save']
     log_file = mech_para['log_file']
 
-    prefer_cliques = []
+    #prefer_cliques = []
+    #errors = []
+    #errors_p = []
+    #prefer_pd = pd.read_csv("./data/prefer.csv").values.tolist()
+    #for line in prefer_pd:
+    #    prefer_cliques.append(tuple(line))
+
+    # Start handling cliques for compute history-related error
     errors = []
     errors_p = []
-    prefer_pd = pd.read_csv("./data/prefer.csv").values.tolist()
-    for line in prefer_pd:
-        prefer_cliques.append(tuple(line))
+    cliques_in_list = []
+    history_pd = pd.read_csv(cliques_in).values.tolist()
+    for line in history_pd:
+        if line[1] is np.nan:
+            cliques_in_list.append((line[0],))
+        else:
+            cliques_in_list.append(tuple(line))
     time_start = time.time()
     if mech_type == "mwem":
-        synth = evmechanisms.evmech.ev_mwem(data, epsilon,lastsyn_load, delta, 
+        synth,remaining = evmechanisms.evmech.ev_mwem(data, epsilon,delta, 
                     cliques_in=cliques_in,
                     rounds= rounds,
                     workload=workload,
                     maxsize_mb= max_model_size,
                     pgm_iters= pgm_iters,
-                    eta_max = eta_max,
                     log_file = log_file)
         time_end = time.time()
         time_consume=int(round((time_end-time_start) * 1000))
         # print('Time cost:'+str(time_consume)+' ms.Saving model, cliques and measurements...')
-        errors = evmechanisms.evmech.error_universal(data=data, synth=synth, workload=workload, method = error_method)
-        errors_p = evmechanisms.evmech.error_universal(data=data, synth=synth, workload=prefer_cliques, method = error_method)
+        # Add noise to error calculate
+        eps_error = remaining/2
+        sigma = 1.0 / eps_error
+        errors = evmechanisms.evmech.error_universal(data=data, synth=synth, workload=workload, method = error_method) + np.random.laplace(loc=0, scale=sigma, size=None)
+        errors_p = evmechanisms.evmech.error_universal(data=data, synth=synth, workload=cliques_in_list, method = error_method) + np.random.laplace(loc=0, scale=sigma, size=None)
     if mech_type == "aim":
-        mech = evmechanisms.evmech.ev_AIM(epsilon, delta, lastsyn_load, 
+        mech = evmechanisms.evmech.ev_AIM(epsilon, delta, 
                             max_model_size=max_model_size,
                             cliques_in = cliques_in, 
-                            eta_max=eta_max,
                             log_file = log_file) 
-        synth = mech.run(data, workload)
+        synth,remaining = mech.run(data, workload)
         time_end = time.time()
         time_consume=int(round((time_end-time_start) * 1000))
 
-        prefer_cliques = [(cl, 1.0) for cl in prefer_cliques]
-        errors = evmechanisms.evmech.error_universal(data=data, synth=synth, workload=workload, weighted=True, method = error_method)
-        errors_p = evmechanisms.evmech.error_universal(data=data, synth=synth, workload=prefer_cliques, weighted=True, method = error_method)
+        cliques_in_list = [(cl, 1.0) for cl in cliques_in_list]
+        eps_error = remaining/2
+        sigma = 1.0 / eps_error
+        errors = evmechanisms.evmech.error_universal(data=data, synth=synth, workload=workload, weighted=True, method = error_method) + np.random.laplace(loc=0, scale=sigma, size=None)
+        errors_p = evmechanisms.evmech.error_universal(data=data, synth=synth, workload=cliques_in_list, weighted=True, method = error_method) + np.random.laplace(loc=0, scale=sigma, size=None)
 
     if save is not None:
         synth.df.to_csv(save, index=False)
@@ -66,10 +78,8 @@ def exp_single(mech_para:dict, mech_type, data, workload, error_method):
 def args_handler(args, budgets,log_file):
     mech_para = {}
     mech_para['delta'] = args.delta
-    mech_para['lastsyn_load'] = args.lastsyn
     mech_para['max_model_size'] = args.max_model_size
     mech_para['cliques_in'] = args.cliques
-    mech_para['eta_max'] = args.eta
     mech_para['rounds'] = args.rounds
     mech_para['pgm_iters'] = args.pgm_iters
     mech_para['save'] =args.save
@@ -79,25 +89,20 @@ def args_handler(args, budgets,log_file):
 
     return mech_para
 
-def original_syn(mech_para:dict, mech_type, data, workload, error_method):
+def original_syn_exp(mech_para:dict, mech_type, data, workload, error_method):
     epsilon = mech_para['budgets']
     delta = mech_para['delta']
-    lastsyn_load = mech_para['lastsyn_load']
     max_model_size = mech_para['max_model_size']
     cliques_in = mech_para['cliques_in']
-    eta_max = mech_para['eta_max']
     rounds = mech_para['rounds']
     pgm_iters = mech_para['pgm_iters']
     save = mech_para['save']
     log_file = mech_para['log_file']
     clique_save = "./data"
 
-    prefer_cliques = []
     errors = []
     errors_p = []
-    prefer_pd = pd.read_csv("./data/prefer.csv").values.tolist()
-    for line in prefer_pd:
-        prefer_cliques.append(tuple(line))
+
     time_start = time.time()
     if mech_type == "mwem":
         synth = mechanisms.mwem_pgm.mwem_pgm(data, epsilon,clique_save, delta, 
@@ -109,43 +114,47 @@ def original_syn(mech_para:dict, mech_type, data, workload, error_method):
         time_end = time.time()
         time_consume=int(round((time_end-time_start) * 1000))
         # print('Time cost:'+str(time_consume)+' ms.Saving model, cliques and measurements...')
+        cliques_in_list = []
+        history_pd = pd.read_csv(cliques_in).values.tolist()
+        for line in history_pd:
+            if line[1] is np.nan:
+                cliques_in_list.append((line[0],))
+            else:
+                cliques_in_list.append(tuple(line))
         errors = evmechanisms.evmech.error_universal(data=data, synth=synth, workload=workload, method = error_method)
-        errors_p = evmechanisms.evmech.error_universal(data=data, synth=synth, workload=prefer_cliques, method = error_method)
+        errors_p = evmechanisms.evmech.error_universal(data=data, synth=synth, workload=cliques_in_list, method = error_method)
     if mech_type == "aim":
         mech = mechanisms.aim.AIM(epsilon, delta, 
                             max_model_size=max_model_size, 
                             log_file = log_file) 
-        synth = mech.run(data, workload,clique_save)
+        synth= mech.run(data, workload,clique_save)
         time_end = time.time()
         time_consume=int(round((time_end-time_start) * 1000))
+        # Start handling cliques for compute history-related error
+        cliques_in_list = []
+        history_pd = pd.read_csv(cliques_in).values.tolist()
+        for line in history_pd:
+                if line[1] is np.nan:
+                    cliques_in_list.append((line[0],))
+                else:
+                    cliques_in_list.append(tuple(line))
+        cliques_in_list = [(cl, 1.0) for cl in cliques_in_list]
 
-        prefer_cliques = [(cl, 1.0) for cl in prefer_cliques]
         errors = evmechanisms.evmech.error_universal(data=data, synth=synth, workload=workload, weighted=True, method = error_method)
-        errors_p = evmechanisms.evmech.error_universal(data=data, synth=synth, workload=prefer_cliques, weighted=True, method = error_method)
+        errors_p = evmechanisms.evmech.error_universal(data=data, synth=synth, workload=cliques_in_list, weighted=True, method = error_method)
 
-    if save is not None:
-        synth.df.to_csv(save, index=False)
-    return [np.mean(errors), np.mean(errors_p),time_consume]
+    return synth, [np.mean(errors), np.mean(errors_p),time_consume]
 
-def original_syn_aae(mech_para:dict, mech_type, data, workload):
+
+def original_syn(mech_para:dict, mech_type, data, workload):
     epsilon = mech_para['budgets']
     delta = mech_para['delta']
-    lastsyn_load = mech_para['lastsyn_load']
     max_model_size = mech_para['max_model_size']
-    cliques_in = mech_para['cliques_in']
-    eta_max = mech_para['eta_max']
     rounds = mech_para['rounds']
     pgm_iters = mech_para['pgm_iters']
-    save = mech_para['save']
     log_file = mech_para['log_file']
     clique_save = "./data"
 
-    prefer_cliques = []
-    errors = []
-    errors_p = []
-    prefer_pd = pd.read_csv("./data/prefer.csv").values.tolist()
-    for line in prefer_pd:
-        prefer_cliques.append(tuple(line))
     time_start = time.time()
     if mech_type == "mwem":
         synth = mechanisms.mwem_pgm.mwem_pgm(data, epsilon,clique_save, delta, 
@@ -157,20 +166,70 @@ def original_syn_aae(mech_para:dict, mech_type, data, workload):
         time_end = time.time()
         time_consume=int(round((time_end-time_start) * 1000))
         # print('Time cost:'+str(time_consume)+' ms.Saving model, cliques and measurements...')
-        errors = evmechanisms.evmech.error_aae(data=data, synth=synth, workload=workload)
-        errors_p = evmechanisms.evmech.error_aae(data=data, synth=synth, workload=prefer_cliques)
+
     if mech_type == "aim":
         mech = mechanisms.aim.AIM(epsilon, delta, 
                             max_model_size=max_model_size, 
                             log_file = log_file) 
-        synth = mech.run(data, workload,clique_save)
+        synth= mech.run(data, workload,clique_save)
         time_end = time.time()
         time_consume=int(round((time_end-time_start) * 1000))
 
-        prefer_cliques = [(cl, 1.0) for cl in prefer_cliques]
-        errors = evmechanisms.evmech.error_aae(data=data, synth=synth, workload=workload)
-        errors_p = evmechanisms.evmech.error_aae(data=data, synth=synth, workload=prefer_cliques)
+    return synth, time_consume
 
-    if save is not None:
-        synth.df.to_csv(save, index=False)
-    return [np.mean(errors), np.mean(errors_p),time_consume]
+def update(mech_para:dict, mech_type, data, workload, error_method):
+    epsilon = mech_para['budgets']
+    delta = mech_para['delta']
+    max_model_size = mech_para['max_model_size']
+    cliques_in = mech_para['cliques_in']
+    rounds = mech_para['rounds']
+    pgm_iters = mech_para['pgm_iters']
+    log_file = mech_para['log_file']
+
+    #prefer_cliques = []
+    #errors = []
+    #errors_p = []
+    #prefer_pd = pd.read_csv("./data/prefer.csv").values.tolist()
+    #for line in prefer_pd:
+    #    prefer_cliques.append(tuple(line))
+
+    cliques_in_list = []
+    history_pd = pd.read_csv(cliques_in).values.tolist()
+    for line in history_pd:
+        if line[1] is np.nan:
+            cliques_in_list.append((line[0],))
+        else:
+            cliques_in_list.append(tuple(line))
+    time_start = time.time()
+    if mech_type == "mwem":
+        synth,remaining = evmechanisms.evmech.ev_mwem(data, epsilon,delta, 
+                    cliques_in=cliques_in,
+                    rounds= rounds,
+                    workload=workload,
+                    maxsize_mb= max_model_size,
+                    pgm_iters= pgm_iters,
+                    log_file = log_file)
+        time_end = time.time()
+        time_consume=int(round((time_end-time_start) * 1000))
+        # print('Time cost:'+str(time_consume)+' ms.Saving model, cliques and measurements...')
+        # Add noise to error calculate
+        #eps_error = remaining/2
+        #sigma = 1.0 / eps_error
+        #errors = evmechanisms.evmech.error_universal(data=data, synth=synth, workload=workload, method = error_method) + np.random.laplace(loc=0, scale=sigma, size=None)
+        #errors_p = evmechanisms.evmech.error_universal(data=data, synth=synth, workload=cliques_in_list, method = error_method) + np.random.laplace(loc=0, scale=sigma, size=None)
+    if mech_type == "aim":
+        mech = evmechanisms.evmech.ev_AIM(epsilon, delta, 
+                            max_model_size=max_model_size,
+                            cliques_in = cliques_in, 
+                            log_file = log_file) 
+        synth,remaining = mech.run(data, workload)
+        time_end = time.time()
+        time_consume=int(round((time_end-time_start) * 1000))
+
+        #cliques_in_list = [(cl, 1.0) for cl in cliques_in_list]
+        #eps_error = remaining/2
+        #sigma = 1.0 / eps_error
+        #errors = evmechanisms.evmech.error_universal(data=data, synth=synth, workload=workload, weighted=True, method = error_method) + np.random.laplace(loc=0, scale=sigma, size=None)
+        #errors_p = evmechanisms.evmech.error_universal(data=data, synth=synth, workload=cliques_in_list, weighted=True, method = error_method) + np.random.laplace(loc=0, scale=sigma, size=None)
+
+    return synth, [remaining, time_consume]

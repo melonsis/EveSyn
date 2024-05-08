@@ -14,30 +14,7 @@ from mechanisms.cdp2adp import cdp_rho
 import random
 import evmechanisms.evtools
 
-def eta_test(data, lastsyn_load, syn, workload):
-    """
-    Test function for adaptively increse eta
-    data: Original data
-    lastsyn_load: Last synthetic data
-    syn: Synthetic data of this time
-    workload: The workload using for test
-    """
-    errors_last = []
-    errors_this = []
-    for proj in workload:
-        O = data.project(proj).datavector()
-        X = lastsyn_load.project(proj).datavector()
-        Y = syn.project(proj).datavector()
-        elast = 0.5*np.linalg.norm(O/O.sum() - X/X.sum(), 1)
-        ethis = 0.5*np.linalg.norm(O/O.sum() - Y/Y.sum(), 1)
-        errors_last.append(elast)
-        errors_this.append(ethis)
 
-    if np.mean(errors_this) < np.mean(errors_last):
-        return 1
-    else:
-        return 0 
-    
 def powerset(iterable): # Calculting for powerset
     "powerset([1,2,3]) --> (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
     s = list(iterable)
@@ -59,35 +36,19 @@ def compile_workload(workload):
     return { cl : score(cl) for cl in downward_closure(workload) }
 
 class ev_AIM(Mechanism):
-    def __init__(self,epsilon,delta,lastsyn_load,eta_max, prng=None,rounds=None,max_model_size=80,structural_zeros={},cliques_in = "./data/cliques.csv",log_file = None):  
+    def __init__(self,epsilon,delta,lastsyn_load, prng=None,rounds=None,max_model_size=80,structural_zeros={},cliques_in = "./data/cliques.csv",log_file = None):  
         super(ev_AIM, self).__init__(epsilon, delta, prng)
         self.rounds = rounds
         self.max_model_size = max_model_size
         self.structural_zeros = structural_zeros
         self.cliques_in = cliques_in
         self.lastsyn_load = lastsyn_load
-        self.eta_max = eta_max
         self.log_file = log_file
         
-    def worst_approximated_eta(self, candidates, answers, model, eps, sigma, eta):
-        errors = {}
-        sensitivity = {}
-        for cl in candidates:
-            wgt = candidates[cl]
-            x = answers[cl]
-            bias = np.sqrt(2/np.pi)*sigma*model.domain.size(cl)
-            xest = model.project(cl).datavector()
-            errors[cl] = wgt * (np.linalg.norm(x - xest, 1) - bias)
-            sensitivity[cl] = abs(wgt) 
-
-        max_sensitivity = max(sensitivity.values()) # if all weights are 0, could be a problem
-        return self.exponential_mechanism_eta(errors, eta, eps, max_sensitivity)
     
-
     def run(self, data, W):
         
         rounds = self.rounds or 16*len(data.domain) #EveSyn: Here we using the original rounds limit, to achieve same 1-way calc budget
-        eta = 1 # EveSyn: Initialzed an eta = 1
 
         cliques = []
         cliquepd = pd.read_csv(self.cliques_in).values.tolist() #EveSyn: Get selected cliques
@@ -96,27 +57,14 @@ class ev_AIM(Mechanism):
                 cliques.append((line[0],))
             else:
                 cliques.append(tuple(line))
-        #EveSyn:Load prefer cliques from file
-        prefer_pd =  pd.read_csv("./data/prefer.csv").values.tolist()
-        for line in prefer_pd:
-            if line[1] is np.nan:
-                    cliques.append((line[0],))
-            else:
-                    cliques.append(tuple(line))
-        
-       
-       
         
         workload = [cl for cl, _ in W]
         candidates = compile_workload(workload)
-        answers = { cl : data.project(cl).datavector() for cl in candidates }
 
         oneway = [cl for cl in candidates if len(cl) == 1] 
         rho_used = 0
 
-        
         sigma = np.sqrt(rounds / (2*0.9*self.rho))
-
 
         measurements = []
         if self.log_file == None:
@@ -141,44 +89,17 @@ class ev_AIM(Mechanism):
         remaining = self.rho - rho_used
         # EveSyn: After the completion of a 1-way measurements, we reset the maximum number of rounds to be equal to the total length of cliques (with prefer attributes), in order to avoid allocating too much budget for 1-way measurements. 
         # Once this is set, the subsequent process can be considered as allocating a fixed budget per round.
-        if self.lastsyn_load is None:
-            rounds = len(cliques)
-        else:
-            rounds = len(cliques)+eta
+        rounds = len(cliques) + 2
         sigma = np.sqrt(rounds / (2 * remaining)) #EveSyn: Re-design sigma
          #print("!!!Re-design sigma after one-way!")
         #print("New sigma:",sigma)
         evmechanisms.evtools.info_logger('[V] !!!Re-design sigma after one-way!', log_file[0], log_file[1])
         evmechanisms.evtools.info_logger('[V] New sigma:'+str(sigma), log_file[0], log_file[1])
         
-
-          #EveSyn: When the last synthetic data is given, run the select step once
-        if self.lastsyn_load is not None: 
-            print('Last synthetic data detected, adding selection')
-            epsilon = np.sqrt(8*0.1*self.rho/rounds)
-            #rho_used += epsilon
-            choice_cl = self.worst_approximated_eta(candidates, answers, self.lastsyn_load, epsilon, sigma,eta)
-            for cl in choice_cl:
-                if cl not in cliques:
-                    cliques.append(cl)
-                else:
-                    rounds = rounds-1
-            remaining = remaining - 1/sigma**2 
-            sigma = np.sqrt(rounds / (2 * remaining))  #EveSyn: Re-design sigma after selection
-            print("!!!Re-design sigma after selection!")
-            print("New sigma:",sigma)
-        
-
-        while t < rounds and not terminate:
+        while t < rounds-2 and not terminate:
             t += 1
             cl = None
-            if (self.rho - rho_used <0.5/sigma**2): #EveSyn: Change the limitation
-                # Just use up whatever remaining budget there is for one last round
-                remaining = self.rho - rho_used
-                sigma = np.sqrt(1 / (2*0.9*remaining))
-                # We do not needs epsilon here
-                # epsilon = np.sqrt(8*0.1*remaining) 
-                terminate = True
+
             rho_used += 0.5/sigma**2 #EveSyn: Remove epsilon here
             cl = cliques[t-1]        #EveSyn: Switch the original select method to reading selected cliques line by line.
             n = data.domain.size(cl)
@@ -199,40 +120,11 @@ class ev_AIM(Mechanism):
         # print('Generating Data...')
         evmechanisms.evtools.info_logger('[V] Generating Data...', log_file[0], log_file[1])
         synth = model.synthetic_data()
-        if self.lastsyn_load is not None:
-            error_comp = eta_test(data=data, lastsyn_load=self.lastsyn_load, syn=synth, workload=workload) #EveSyn:Test for whether eta should gets bigger or not
-            if (error_comp == 1) and eta < self.eta_max:
-                eta +=1
-                print("Eta increased to "+str(eta))
 
-        return synth
+        return synth, self.rho-rho_used
 
-def worst_approximated_eta_mwem(workload_answers, est, workload, eps, eta, penalty=True):
-    """ Select eta (noisy) worst-approximated marginal for measurement.
-    
-    :param workload_answers: a dictionary of true answers to the workload
-        keys are cliques
-        values are numpy arrays, corresponding to the counts in the marginal
-    :param est: a GraphicalModel object that approximates the data distribution
-    :param: workload: The list of candidates to consider in the exponential mechanism
-    :param eps: the privacy budget to use for this step.
-    :param eta: the number of selected cliques
-    """
-    errors = np.array([])
-    for cl in workload:
-        bias = est.domain.size(cl) if penalty else 0
-        x = workload_answers[cl]
-        xest = est.project(cl).datavector()
-        errors = np.append(errors, np.abs(x - xest).sum()-bias)
-    sensitivity = 2.0
-    prob = softmax(0.5*eps/sensitivity*(errors - errors.max()))
-    keys = np.random.choice(len(errors), p=prob,size = eta)
-    choice_cl = []
-    for key in keys:
-        choice_cl.append(workload[key])
-    return choice_cl
 
-def ev_mwem(data,epsilon, lastsyn_load, delta=0.0, cliques_in=None,rounds=None, workload = None, maxsize_mb = 25, pgm_iters=100, noise='laplace', eta_max=5, log_file = None):
+def ev_mwem(data,epsilon, lastsyn_load, delta=0.0, cliques_in=None,rounds=None, workload = None, maxsize_mb = 25, pgm_iters=100, noise='laplace',  log_file = None):
 
     """
     Implementation of a dynamic update version of MWEM+PGM
@@ -251,7 +143,6 @@ def ev_mwem(data,epsilon, lastsyn_load, delta=0.0, cliques_in=None,rounds=None, 
     - During each round of MWEM, one clique will be selected for measurement, but only if measuring the clique does
         not increase size of the graphical model too much
     """ 
-    eta = 1 # EveSyn: Initialzed an eta = 1
     if workload is None:
         workload = list(itertools.combinations(data.domain, 2))
     
@@ -262,24 +153,15 @@ def ev_mwem(data,epsilon, lastsyn_load, delta=0.0, cliques_in=None,rounds=None, 
     for line in cliquepd:
         cliques.append(tuple(line)) 
     #EveSyn:Add prefer cliques
-    prefer_cliques = []
-    #EveSyn:Load prefer cliques from file
-    prefer_pd = pd.read_csv("./data/prefer.csv").values.tolist() #EveSyn: Get prefer cliques
-    for line in prefer_pd:
-            prefer_cliques.append(tuple(line))
-    #EveSyn:Add prefer cliques to original cliques
-    cliques += prefer_cliques
 
     if rounds is None:
-        if lastsyn_load is None:
-            rounds = len(cliques)
-        else:
-            rounds = len(cliques)+eta
+        rounds = len(cliques)+2
+    else:
+        rounds += 2
 
     if noise == 'laplace':
-        eps_per_round = epsilon / (2 * rounds)
+        eps_per_round = epsilon / rounds
         sigma = 1.0 / eps_per_round
-        exp_eps = eps_per_round
         marginal_sensitivity = 2
     else:
         rho = cdp_rho(epsilon, delta)
@@ -299,21 +181,7 @@ def ev_mwem(data,epsilon, lastsyn_load, delta=0.0, cliques_in=None,rounds=None, 
     else:
         evmechanisms.evtools.info_logger("======MECH START======", log_file[0], log_file[1])
 
-    #EveSyn: When the last synthetic data is given, run the select step once
-    if lastsyn_load is not None: 
-        print('Last synthetic data detected, adding selection')
-        choice_cl = worst_approximated_eta_mwem(workload_answers = answers, est = lastsyn_load, workload = workload, eta=eta, eps = exp_eps)
-
-        for cl in choice_cl:
-            if cl not in cliques:
-                cliques.append(cl)
-            else:
-                rounds = rounds-1
-        
-        eps_per_round = (epsilon - exp_eps) / (2 * rounds)
-        sigma = 1.0 / eps_per_round #EveSyn: Re-calculate sigma
-
-    for i in range(1, rounds+1):
+    for i in range(1, rounds-1):
         ax = cliques[i-1] #EveSyn: Switch the original select method to reading selected cliques line by line.
         # print('Round', i, 'Selected', ax, "Eps per round =",eps_per_round)
         info = '[V] Round' + str(i) + 'Selected' + str(ax) + "Eps per round =" + str(eps_per_round)
@@ -330,50 +198,23 @@ def ev_mwem(data,epsilon, lastsyn_load, delta=0.0, cliques_in=None,rounds=None, 
     evmechanisms.evtools.info_logger('[V] Generating Data...', log_file[0],log_file[1])
     # print('Generating Data...')
     syn = est.synthetic_data()
-    if lastsyn_load is not None:
-        error_comp = eta_test(data=data, lastsyn_load=lastsyn_load, syn=syn, workload=workload) #EveSyn:Test for whether eta should gets bigger or not
-        if (error_comp == 1) and eta < eta_max:
-            eta +=1
-            print("Eta increased to "+str(eta))
-    return syn
-
-def prefer_picker(workload, previous_cliques, prefer_count,name):
-    pre_count = 0
-    prefer_flag = "./Results/prefered/prefer_"+name+str(int(time.time()))+".csv"
-    print("Generating..")
-    if previous_cliques is list:
-        pre_count = len(previous_cliques)
-    prefer_cliques = []
-
-    if pre_count == 0:
-        prefer_cliques = random.sample(workload, prefer_count - pre_count)
-    elif prefer_count - pre_count >= 0:
-        prefer_cliques += previous_cliques
-        while len(prefer_cliques)!=prefer_count:
-            clique = random.sample(workload, 1)
-            if clique not in prefer_cliques:
-                prefer_cliques.append(clique)
-
-    prefer_pd = pd.DataFrame(prefer_cliques,columns=None)
-    print("Saving to data folder...")
-    prefer_pd.to_csv("./data/prefer.csv",index=False)
-    print("Saving to results folder...")
-    prefer_pd.to_csv(prefer_flag,index=False)
+    remaining = eps_per_round*2
+    return syn, remaining
 
 def error_universal(data, synth, workload, method='mae', weighted=False):
     errors = []
     for item in workload:
         if isinstance(item, tuple) and weighted:
-            proj, wgt = item  # 解包投影和权重
+            proj, wgt = item  # Get the weight and project
         else:
             proj = item if not isinstance(item, tuple) else item[0]
-            wgt = 1           # 默认权重为1
+            wgt = 1           # Give an initial weight at 1
 
-        # 获取数据向量
+        # Get the data vector
         X = data.project(proj).datavector()
         Y = synth.project(proj).datavector()
 
-        # 根据选择的方法计算误差
+        # Compute the error with given method
         if method == 'mae':
             norm_X = X / X.sum()
             norm_Y = Y / Y.sum()
