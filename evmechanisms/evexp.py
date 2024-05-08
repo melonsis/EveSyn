@@ -68,13 +68,6 @@ def update(mech_para:dict, mech_type, data, workload):
     pgm_iters = mech_para['pgm_iters']
     log_file = mech_para['log_file']
 
-    #prefer_cliques = []
-    #errors = []
-    #errors_p = []
-    #prefer_pd = pd.read_csv("./data/prefer.csv").values.tolist()
-    #for line in prefer_pd:
-    #    prefer_cliques.append(tuple(line))
-
     cliques_in_list = []
     history_pd = pd.read_csv(cliques_in).values.tolist()
     for line in history_pd:
@@ -93,12 +86,7 @@ def update(mech_para:dict, mech_type, data, workload):
                     log_file = log_file)
         time_end = time.time()
         time_consume=int(round((time_end-time_start) * 1000))
-        # print('Time cost:'+str(time_consume)+' ms.Saving model, cliques and measurements...')
-        # Add noise to error calculate
-        #eps_error = remaining/2
-        #sigma = 1.0 / eps_error
-        #errors = evmechanisms.evmech.error_universal(data=data, synth=synth, workload=workload, method = error_method) + np.random.laplace(loc=0, scale=sigma, size=None)
-        #errors_p = evmechanisms.evmech.error_universal(data=data, synth=synth, workload=cliques_in_list, method = error_method) + np.random.laplace(loc=0, scale=sigma, size=None)
+
     if mech_type == "aim":
         mech = evmechanisms.evmech.ev_AIM(epsilon, delta, 
                             max_model_size=max_model_size,
@@ -107,11 +95,4 @@ def update(mech_para:dict, mech_type, data, workload):
         synth,remaining = mech.run(data, workload)
         time_end = time.time()
         time_consume=int(round((time_end-time_start) * 1000))
-
-        #cliques_in_list = [(cl, 1.0) for cl in cliques_in_list]
-        #eps_error = remaining/2
-        #sigma = 1.0 / eps_error
-        #errors = evmechanisms.evmech.error_universal(data=data, synth=synth, workload=workload, weighted=True, method = error_method) + np.random.laplace(loc=0, scale=sigma, size=None)
-        #errors_p = evmechanisms.evmech.error_universal(data=data, synth=synth, workload=cliques_in_list, weighted=True, method = error_method) + np.random.laplace(loc=0, scale=sigma, size=None)
-
     return synth, [remaining, time_consume]
