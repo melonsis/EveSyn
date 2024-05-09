@@ -1,7 +1,7 @@
 -- We strongly recommend you to delete all annotations before use.
--- For details of implemention, see files in is-mechanisms and mechanisms.
-DROP FUNCTION IF EXISTS public.incresyn_init(text, real);
-CREATE OR REPLACE FUNCTION public.incresyn_init(
+-- For details of implemention, see files in ev-mechanisms and mechanisms.
+DROP FUNCTION IF EXISTS public.evesyn_init(text, real);
+CREATE OR REPLACE FUNCTION public.evesyn_init(
 	tablename text,
 	epsilon real)
     RETURNS text
