@@ -134,7 +134,7 @@ if __name__ == "__main__":
 
     connection = 'postgresql+psycopg2://Fill:With@localhost:5432/yourown'
     engine= create_engine(connection)
-    synth.df.to_sql(name=str(tablename)+'_synth', con=engine, index=False, if_exists = 'replace') 
+    synth.df.to_sql(name=str(tablename)+'_synth_temp', con=engine, index=False, if_exists = 'replace') 
 
     errors = []
     for proj in workload:
