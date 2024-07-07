@@ -123,10 +123,11 @@ if __name__ == "__main__":
     for i in range(1,10):
         print("Starting data synthesis at timestamp"+str(i)+" ...",end="",flush=True)
         rho_per_round = rho_remain / args.wsize
+        mech_para = evmechanisms.evexp.args_handler(args, rho_per_round,log_file=log_file) # Allocate budget to current timestamp
         previous_dataset = Dataset.load("./data/original/original_"+str(i-1)+".csv", args.domain)
         current_dataset = Dataset.load("./data/original/original_"+str(i)+".csv", args.domain)
         last_synth = Dataset.load("./data/synth/synth_"+str(i-1), args.domain)
-        rho_used.append(0)
+        # rho_used.append(0)
 
         if not have_intersection(previous_dataset.df, current_dataset.df):
             updated_df = pd.merge(previous_dataset.df, current_dataset.df, how='outer', indicator=True).query('_merge=="right_only"').drop('_merge', axis=1)
