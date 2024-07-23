@@ -36,7 +36,7 @@ def domainSize(dataObj, saved_marginals):
             cliques.update(set(line))
     return np.log(dataObj.domain.size(cliques))
     
-    
+# Determine budgets for initial two timestamps  
 def ETuning(budget, w, strategy):
     # For high-initial strategy, we allocate half of the remaining budget for each timestamp
     if strategy == "high-initial":
