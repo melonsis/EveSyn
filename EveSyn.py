@@ -13,7 +13,7 @@ class AlterArgs:
     def __init__(self, **kwargs):
         for key, value in kwargs.items():
             setattr(self, key, value)
-
+# Load configs from file
 def load_config(config_path):
     with open(config_path, 'r') as file:
         config = json.load(file)
@@ -24,6 +24,33 @@ def load_config(config_path):
 def have_intersection(df1, df2):
     intersection = pd.merge(df1, df2, how='inner')
     return not intersection.empty
+# Determine each g_i
+def domainSize(dataObj, saved_marginals):
+    cliques = set()
+    #EveSyn: Get saved cliques (sames as marginals)
+    cliquepd = pd.read_csv(saved_marginals).values.tolist()
+    for line in cliquepd:
+        if line[1] is np.nan:
+            cliques.add(line[0])
+        else:
+            cliques.update(set(line))
+    return np.log(dataObj.domain.size(cliques))
+    
+    
+def ETuning(budget, w, strategy):
+    # For high-initial strategy, we allocate half of the remaining budget for each timestamp
+    if strategy == "high-initial":
+        init_budget = budget / 2
+    elif strategy == "balance":
+        init_budget = budget / w
+    else:
+        print("Wrong strategy inputted. Using high-initial by default")
+        init_budget = budget / 2
+    return init_budget
+
+
+
+
 
 def default_params(): 
     """
@@ -87,10 +114,11 @@ if __name__ == "__main__":
     workload = [cl for cl in workload if data.domain.size(cl) <= args.max_cells]
     if args.num_marginals is not None:
         workload = [workload[i] for i in prng.choice(len(workload), args.num_marginals, replace=False)]
+    # Add default weights for AIM
     if args.mech == "aim":
         workload = [(cl, 1.0) for cl in workload]
     
-    # Init log file
+    # Init log file and parameters
     attr_name = []
     attr_name.append("Dataset")
     attr_name.append("BudgetsRemain")
@@ -100,40 +128,65 @@ if __name__ == "__main__":
     log_file = evmechanisms.evtools.info_logger("======Experiment START======")
     exp_results = []
     dataset_name = args.dataname
-
-    mech_para = evmechanisms.evexp.args_handler(args, args.epsilon / 2,log_file=log_file) # APBM initialized allocation
-    print("Starting data synthesis at timestamp 1...",end="",flush=True)
-    # Calling original_syn
-    # The error calculated in this timestamp is only for evaluation, so we do not split any budget to protect it.
-    # It should not be calculated when used in a real publishing scenario.
-    synth_data, exp_results = evmechanisms.evexp.original_syn(mech_para = mech_para, mech_type=args.mech, data=data,workload=workload, error_method=args.error_method)
-    synth_data.df.to_csv("./data/synth/synth_0.csv", index=False)
-    print("Done")
-    rho_remain = args.epsilon / 2
-    # Catch remaining budgets
-    rho_used = []
-    rho_used.append(args.epsilon / 2)
+    budget_remain = args.epsilon
+    budget_used = []
+    # A list for storage g_i
+    g_list = []
     # We set the test for 10 rounds (2w) in this example
     # Log the results
-    exp_results.insert(0, str(rho_used[0]))
-    exp_results.insert(0, str(rho_remain))
-    exp_results.insert(0, dataset_name+"_Original")
-    evmechanisms.evtools.log_append(exp_results, log_file_name[0], log_file_name[1])
-    # Start updates
-    for i in range(1,10):
+    for i in range(1,11):
         print("Starting data synthesis at timestamp"+str(i)+" ...",end="",flush=True)
-        rho_per_round = rho_remain / args.wsize
-        mech_para = evmechanisms.evexp.args_handler(args, rho_per_round,log_file=log_file) # Allocate budget to current timestamp
+        if i<=2:
+            # APBM initialized allocation
+            init_budget = ETuning(budget=budget_remain, w=args.wsize, strategy="high-initial")
+            mech_para = evmechanisms.evexp.args_handler(args, init_budget, log_file=log_file)
+            # Calling original_syn
+            # The error calculated in timestamp that invokes original_syn is only for evaluation, so we do not split any budget to protect it.
+            # It should not be calculated when used in a real publishing scenario.
+            synth_data, exp_results = evmechanisms.evexp.original_syn(mech_para = mech_para, mech_type=args.mech, data=data,workload=workload, error_method=args.error_method)
+            synth_data.df.to_csv("./data/synth/synth_"+str(i)+".csv", index=False)
+            print("Done")
+            budget_remain = budget_remain - init_budget
+            # Catch used budgets
+            budget_used.append(init_budget)
+            # Log the results
+            exp_results.insert(0, str(budget_used[0]))
+            exp_results.insert(0, str(budget_remain))
+            exp_results.insert(0, dataset_name+"_Original")
+            evmechanisms.evtools.log_append(exp_results, log_file_name[0], log_file_name[1])
+            g_list.append(domainSize(dataObj=data, saved_marginals=args.cliques))
+
+        # Start further updates
         previous_dataset = Dataset.load("./data/original/original_"+str(i-1)+".csv", args.domain)
         current_dataset = Dataset.load("./data/original/original_"+str(i)+".csv", args.domain)
         last_synth = Dataset.load("./data/synth/synth_"+str(i-1), args.domain)
-        # rho_used.append(0)
-
+        
+        # When budget runs out, use synthetic data in i-1 as the output
+        if budget_remain == 0:
+            last_synth.df.to_csv("./data/synth/synth_"+str(i)+".csv")
+            budget_used.append(0)
+            # Determine remain budgets using only recent w budget_used
+            if i > args.wsize:
+                budget_remain = args.epsilon - sum(budget_used[i-args.wsize:i+1])
+            else:
+                budget_remain = args.epsilon - sum(budget_used[0:i+1])
+            exp_results.insert(0, str(budget_remain))
+            exp_results.insert(0, dataset_name+"_Optimized")
+            evmechanisms.evtools.log_append(exp_results, log_file_name[0], log_file_name[1])
+            break
+        # Normal update process start
+        budget_per_round = budget_remain / args.wsize
+        # Tuning the budget and restrict the tuned budget less than remaining budget
+        budget_tuned = min(budget_per_round * (g_list[i-1]/g_list[i-2]), budget_remain)
+        # Allocate budget to current timestamp
+        mech_para = evmechanisms.evexp.args_handler(args, budget_tuned, log_file=log_file)
+        # Determine whether the updated data is incremental only
         if not have_intersection(previous_dataset.df, current_dataset.df):
             updated_df = pd.merge(previous_dataset.df, current_dataset.df, how='outer', indicator=True).query('_merge=="right_only"').drop('_merge', axis=1)
             synth_data, exp_results = evmechanisms.evexp.update(mech_para=mech_para, mech_type=args.mech, data = Dataset(updated_df,args.domain),workload=workload,error_method=args.error_method)
             synth_new = pd.concat(last_synth.df, synth_data.df)
             synth_new.to_csv("./data/synth/synth_"+str(i)+".csv")
+            budget_used.append(0)
         else:
             synth_data, exp_results = evmechanisms.evexp.update(mech_para=mech_para, mech_type=args.mech, data = current_dataset,workload=workload,error_method=args.error_method)
         # Calculate error
@@ -145,23 +198,25 @@ if __name__ == "__main__":
                 error_weight = False
             else:
                 error_weight = True
-            errors = evmechanisms.evmech.error_universal(data=current_dataset, synth=synth_data, workload=workload, weighted=error_weight, method = args.error_method) + np.random.laplace(loc=0, scale=sigma, size=None)
-            errors_p = evmechanisms.evmech.error_universal(data=current_dataset, synth=last_synth, workload=workload, weighted=error_weight, method = args.error_method) + np.random.laplace(loc=0, scale=sigma, size=None)
+            errors = evmechanisms.evmech.error_universal(data=current_dataset, synth=synth_data, workload=workload, weighted=error_weight, method = args.error_method) + np.random.normal(loc=0, scale=sigma, size=None)
+            errors_p = evmechanisms.evmech.error_universal(data=current_dataset, synth=last_synth, workload=workload, weighted=error_weight, method = args.error_method) + np.random.normal(loc=0, scale=sigma, size=None)
+        # Ensure the data utility
             if errors < errors_p:
                 synth_data.df.to_csv("./data/synth/synth_"+str(i)+".csv")
-                rho_used.append(rho_per_round)
+                budget_remain = budget_remain - budget_tuned
+                budget_used.append(budget_tuned)
             else:
                 last_synth.df.to_csv("./data/synth/synth_"+str(i)+".csv")
-                rho_used.append(0)
-            
-            
-            # Determine remain budgets using only recent w rho_used
+                budget_used.append(0)
+
+            # Determine remain budgets using only recent w budget_used
             if i > args.wsize:
-                rho_remain = args.epsilon - sum(rho_used[i-args.wsize:i+1])
+                budget_remain = args.epsilon - sum(budget_used[i-args.wsize:i+1])
             else:
-                rho_remain = args.epsilon - sum(rho_used[0:i+1])
+                budget_remain = args.epsilon - sum(budget_used[0:i+1])
+            
             # Log the results
-            exp_results.insert(0, str(rho_remain))
+            exp_results.insert(0, str(budget_remain))
             exp_results.insert(0, dataset_name+"_Optimized")
             evmechanisms.evtools.log_append(exp_results, log_file_name[0], log_file_name[1])
             print("Done")
