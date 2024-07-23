@@ -91,8 +91,6 @@ class ev_AIM(Mechanism):
         # Once this is set, the subsequent process can be considered as allocating a fixed budget per round.
         rounds = len(cliques) + 2
         sigma = np.sqrt(rounds / (2 * remaining)) #EveSyn: Re-design sigma
-         #print("!!!Re-design sigma after one-way!")
-        #print("New sigma:",sigma)
         evmechanisms.evtools.info_logger('[V] !!!Re-design sigma after one-way!', log_file[0], log_file[1])
         evmechanisms.evtools.info_logger('[V] New sigma:'+str(sigma), log_file[0], log_file[1])
         
@@ -108,16 +106,13 @@ class ev_AIM(Mechanism):
             y = x + self.gaussian_noise(sigma, n)
             measurements.append((Q, y, sigma, cl))
 
-            # print('Selected',cl,'Size',n,'Budget Used',rho_used/self.rho)
             evmechanisms.evtools.info_logger('[V] Selected'+str(cl)+'Size'+str(n)+'Budget Used'+str(rho_used/self.rho), log_file[0], log_file[1])
 
 
         evmechanisms.evtools.info_logger('[V] Total rounds:'+str(t), log_file[0], log_file[1])
-        # print("Total rounds:",t)
         engine.iters = 2500
         model = engine.estimate(measurements) #EveSyn: Move the estimation outside of the iteration.
 
-        # print('Generating Data...')
         evmechanisms.evtools.info_logger('[V] Generating Data...', log_file[0], log_file[1])
         synth = model.synthetic_data()
 
@@ -183,7 +178,6 @@ def ev_mwem(data,epsilon, lastsyn_load, delta=0.0, cliques_in=None,rounds=None, 
 
     for i in range(1, rounds-1):
         ax = cliques[i-1] #EveSyn: Switch the original select method to reading selected cliques line by line.
-        # print('Round', i, 'Selected', ax, "Eps per round =",eps_per_round)
         info = '[V] Round' + str(i) + 'Selected' + str(ax) + "Eps per round =" + str(eps_per_round)
         evmechanisms.evtools.info_logger(info, log_file[0], log_file[1])
         n = domain.size(ax)
@@ -196,7 +190,6 @@ def ev_mwem(data,epsilon, lastsyn_load, delta=0.0, cliques_in=None,rounds=None, 
         measurements.append((Q, y, 1.0, ax))
     est = engine.estimate(measurements, total) #EveSyn: Move the estimation outside of the iteration.
     evmechanisms.evtools.info_logger('[V] Generating Data...', log_file[0],log_file[1])
-    # print('Generating Data...')
     syn = est.synthetic_data()
     remaining = eps_per_round*2
     return syn, remaining

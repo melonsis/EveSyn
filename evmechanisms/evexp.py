@@ -4,6 +4,10 @@ import numpy as np
 import time
 import mechanisms.aim
 import mechanisms.mwem_pgm
+from scipy.special import softmax
+from scipy import sparse
+import random
+from mbi import Dataset, Domain
 
 # Mech_para: DICT
 # ArgList: 
@@ -25,7 +29,6 @@ def args_handler(args, budgets,log_file):
     mech_para['log_file'] = log_file
 
     return mech_para
-
 
 
 def original_syn(mech_para:dict, mech_type, data, workload):
@@ -59,6 +62,64 @@ def original_syn(mech_para:dict, mech_type, data, workload):
 
     return synth, [time_consume]
 
+def worst_estimated(workload, last_synth, current_dataset_answer, budget, l):
+    """
+    :param workload_answers: a dictionary of true answers to the workload
+        keys are cliques
+        values are numpy arrays, corresponding to the counts in the marginal
+    :param est: a GraphicalModel object that approximates the data distribution
+    :param: workload: The list of candidates to consider in the exponential mechanism
+    :param eps: the privacy budget to use for this step.
+    """
+    errors = np.array([])
+    for cl in workload:
+        bias = last_synth.domain.size(cl)
+        x = current_dataset_answer[cl]
+        xest = last_synth.project(cl).datavector()
+        errors = np.append(errors, np.abs(x - xest).sum()-bias)
+    sensitivity = 2.0
+    prob = softmax(0.5*budget/sensitivity*(errors - errors.max()))
+    keys = np.random.choice(len(errors), p=prob, size=l)
+    selected = []
+    for key in keys:
+        selected.append(workload[key])
+    return selected
+# Here we select default l = 3
+def CTuning(budget, last_synth, current_dataset_answer, workload, cliques_in, strategy, l):
+
+    # Process the cliques by strategy
+    # Unchanged will not read or modificate the original cliques
+    if strategy == "Unchanged":
+        remain_budget = budget
+    # Add or Replace will modificate the original cliques
+    else:
+        # Read previous cliques (same as marginals)
+        cliques_in_list = []
+        history_pd = pd.read_csv(cliques_in).values.tolist()
+        for line in history_pd:
+            if line[1] is np.nan:
+                cliques_in_list.append((line[0],))
+            else:
+                cliques_in_list.append(tuple(line))
+
+        budget_cl = remain_budget / 10
+        remain_budget = remain_budget - budget_cl
+        worst_l = worst_estimated(last_synth=last_synth, current_dataset_answer=current_dataset_answer, workload=workload, budget=budget_cl, l=l)
+        if strategy == "Add":
+            for cl in worst_l:
+                cliques_in_list.append(cl)
+        elif strategy == "Replace":
+            for cl in worst_l:
+                random_index = random.randint(0, len(cliques_in_list) - 1)
+                cliques_in_list.pop(random_index)
+                cliques_in_list.append(cl)
+        
+        cliquepd = pd.DataFrame(cliques_in_list,columns=None)
+        cliquepd.to_csv(cliques_in, index=False) #EveSyn: Save the modified cliques
+
+    return remain_budget
+
+
 def update(mech_para:dict, mech_type, data, workload):
     epsilon = mech_para['budgets']
     delta = mech_para['delta']
@@ -67,17 +128,11 @@ def update(mech_para:dict, mech_type, data, workload):
     rounds = mech_para['rounds']
     pgm_iters = mech_para['pgm_iters']
     log_file = mech_para['log_file']
-
-    cliques_in_list = []
-    history_pd = pd.read_csv(cliques_in).values.tolist()
-    for line in history_pd:
-        if line[1] is np.nan:
-            cliques_in_list.append((line[0],))
-        else:
-            cliques_in_list.append(tuple(line))
+    
+    epsilon = CTuning(budget=epsilon, last_synth= , current_dataset_answer= , workload=workload, cliques_in=cliques_in, strategy="Unchanged", l=3)
     time_start = time.time()
     if mech_type == "mwem":
-        synth,remaining = evmechanisms.evmech.ev_mwem(data, epsilon,delta, 
+        synth,remaining = evmechanisms.evmech.ev_mwem(data, epsilon, delta, 
                     cliques_in=cliques_in,
                     rounds= rounds,
                     workload=workload,
@@ -95,4 +150,4 @@ def update(mech_para:dict, mech_type, data, workload):
         synth,remaining = mech.run(data, workload)
         time_end = time.time()
         time_consume=int(round((time_end-time_start) * 1000))
-    return synth, [remaining, time_consume]
+    return synth, [time_consume], remaining
