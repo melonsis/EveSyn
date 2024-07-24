@@ -76,14 +76,18 @@ if __name__ == "__main__":
         last_row_status = df.iloc[-1]['Status']
         last_time_stamp = df.iloc[-1]['Timestamp']
         
-        if last_row_status = 'end':
+        if last_row_status = 'end':                
             if last_time_stamp >= wsize:
                 rho_used = df.iloc[-(wsize):]['Budget'].sum()
             else:
                 rho_used = df.iloc['Budget'].sum()
             
             rho_remain = epsilon-rho_used
-            budget = on_start(wsize, rho_remain)
+            if last_time_stamp = 1:
+                budget = on_start(2, rho_remain)
+            else:
+                budget = on_start(wsize, rho_remain)
+    
             new_row = {'Timestamp': [last_time_stamp+1],
                     'Used': [budget],
                     'Status':["start"]}

@@ -1,7 +1,7 @@
 -- We strongly recommend you to delete all annotations before use.
 -- For details of implemention, see files in ev-mechanisms and mechanisms.
-DROP FUNCTION IF EXISTS public.evesyn_init(text, real);
-CREATE OR REPLACE FUNCTION public.evesyn_init(
+DROP FUNCTION IF EXISTS public.evesyn_full(text, real);
+CREATE OR REPLACE FUNCTION public.evesyn_full(
 	tablename text,
 	epsilon real)
     RETURNS text
@@ -159,5 +159,5 @@ if __name__ == "__main__":
     plpy.notice('Average Error: ', np.mean(errors))
     $BODY$;
 
-ALTER FUNCTION public.incresyn_init(text, real)
+ALTER FUNCTION public.evesyn_full(text, real)
     OWNER TO test;
