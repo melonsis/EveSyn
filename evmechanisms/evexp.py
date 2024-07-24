@@ -64,33 +64,36 @@ def original_syn(mech_para:dict, mech_type, data, workload):
 
 def worst_estimated(workload, last_synth, current_dataset_answer, budget, l):
     """
-    :param workload_answers: a dictionary of true answers to the workload
+    workload_answers: a dictionary of true answers to the workload
         keys are cliques
         values are numpy arrays, corresponding to the counts in the marginal
-    :param est: a GraphicalModel object that approximates the data distribution
-    :param: workload: The list of candidates to consider in the exponential mechanism
-    :param eps: the privacy budget to use for this step.
+    last_synth: Last round's synthetic data
+    workload: The list of candidates to consider in the exponential mechanism
+    budget: The privacy budget to use for this step.
+    l: The number of select marginals
+
     """
     errors = np.array([])
     for cl in workload:
         bias = last_synth.domain.size(cl)
         x = current_dataset_answer[cl]
-        xest = last_synth.project(cl).datavector()
-        errors = np.append(errors, np.abs(x - xest).sum()-bias)
+        xsyn = last_synth.project(cl).datavector()
+        errors = np.append(errors, np.abs(x - xsyn).sum()-bias)
     sensitivity = 2.0
-    prob = softmax(0.5*budget/sensitivity*(errors - errors.max()))
+    prob = softmax(0.5 * budget/sensitivity*(errors - errors.max()))
     keys = np.random.choice(len(errors), p=prob, size=l)
     selected = []
     for key in keys:
         selected.append(workload[key])
     return selected
-# Here we select default l = 3
-def CTuning(budget, last_synth, current_dataset_answer, workload, cliques_in, strategy, l):
 
+# Here we set default l = 3
+def CTuning(budget, last_synth, current_dataset_answer, workload, cliques_in, strategy, l):
     # Process the cliques by strategy
     # Unchanged will not read or modificate the original cliques
     if strategy == "Unchanged":
         remain_budget = budget
+    
     # Add or Replace will modificate the original cliques
     else:
         # Read previous cliques (same as marginals)
@@ -120,7 +123,7 @@ def CTuning(budget, last_synth, current_dataset_answer, workload, cliques_in, st
     return remain_budget
 
 
-def update(mech_para:dict, mech_type, data, workload):
+def update(mech_para:dict, mech_type, data, last_synth, workload):
     epsilon = mech_para['budgets']
     delta = mech_para['delta']
     max_model_size = mech_para['max_model_size']
@@ -129,7 +132,10 @@ def update(mech_para:dict, mech_type, data, workload):
     pgm_iters = mech_para['pgm_iters']
     log_file = mech_para['log_file']
     
-    epsilon = CTuning(budget=epsilon, last_synth= , current_dataset_answer= , workload=workload, cliques_in=cliques_in, strategy="Unchanged", l=3)
+    current_data_answer = { cl : data.project(cl).datavector() for cl in workload }
+    # Tuning the cliques by CTuning
+    # Additionally select cliques (strategy Add and Replace) may consume budget 
+    epsilon = CTuning(budget=epsilon, last_synth=last_synth, current_dataset_answer=current_data_answer, workload=workload, cliques_in=cliques_in, strategy="Unchanged", l=3)
     time_start = time.time()
     if mech_type == "mwem":
         synth,remaining = evmechanisms.evmech.ev_mwem(data, epsilon, delta, 

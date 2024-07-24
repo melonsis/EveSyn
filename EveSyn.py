@@ -213,7 +213,7 @@ if __name__ == "__main__":
             # Get the incremetal part of updated dataset
             updated_df = pd.merge(previous_dataset.df, current_dataset.df, how='outer', indicator=True).query('_merge=="right_only"').drop('_merge', axis=1)
             # Synth the data
-            synth_data, exp_results = evmechanisms.evexp.update(mech_para=mech_para, mech_type=args.mech, data = Dataset(updated_df,args.domain),workload=workload)
+            synth_data, exp_results = evmechanisms.evexp.update(mech_para=mech_para, mech_type=args.mech, data = Dataset(updated_df,args.domain), last_synth=last_synth, workload=workload)
             synth_new = pd.concat(last_synth.df, synth_data.df)
             synth_new.to_csv("./data/synth/synth_"+str(i)+".csv")
             # Catch used budgets, here is 0
@@ -232,15 +232,16 @@ if __name__ == "__main__":
             continue
         # Normal update process start
         else:
-            synth_data, exp_results, budget_error = evmechanisms.evexp.update(mech_para=mech_para, mech_type=args.mech, data = current_dataset, workload=workload)
+            synth_data, exp_results, budget_error = evmechanisms.evexp.update(mech_para=mech_para, mech_type=args.mech, data = current_dataset, last_synth=last_synth, workload=workload)
             # Calculate error
             errors = []
             errors_p = []
-            sigma = 1.0 / budget_error
             if args.mech == "mwem":
                 error_weight = False
+                sigma = np.sqrt(2*np.log(1.25/args.delta)) / (budget_error / 2)
             else:
                 error_weight = True
+                sigma = np.sqrt(budget_error / 2)
             errors = evmechanisms.evmech.error_universal(data=current_dataset, synth=synth_data, workload=workload, weighted=error_weight, method = args.error_method) + np.random.normal(loc=0, scale=sigma, size=None)
             errors_p = evmechanisms.evmech.error_universal(data=current_dataset, synth=last_synth, workload=workload, weighted=error_weight, method = args.error_method) + np.random.normal(loc=0, scale=sigma, size=None)
             # Ensure the data utility

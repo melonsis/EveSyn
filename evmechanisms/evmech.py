@@ -116,7 +116,7 @@ class ev_AIM(Mechanism):
         evmechanisms.evtools.info_logger('[V] Generating Data...', log_file[0], log_file[1])
         synth = model.synthetic_data()
 
-        return synth, self.rho-rho_used
+        return synth, 2*sigma**2 
 
 
 def ev_mwem(data,epsilon, lastsyn_load, delta=0.0, cliques_in=None,rounds=None, workload = None, maxsize_mb = 25, pgm_iters=100, noise='laplace',  log_file = None):
@@ -191,7 +191,7 @@ def ev_mwem(data,epsilon, lastsyn_load, delta=0.0, cliques_in=None,rounds=None, 
     est = engine.estimate(measurements, total) #EveSyn: Move the estimation outside of the iteration.
     evmechanisms.evtools.info_logger('[V] Generating Data...', log_file[0],log_file[1])
     syn = est.synthetic_data()
-    remaining = eps_per_round*2
+    remaining = eps_per_round * 2
     return syn, remaining
 
 def error_universal(data, synth, workload, method='mae', weighted=False):
