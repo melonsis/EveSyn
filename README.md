@@ -1,10 +1,5 @@
 # EveSyn: Enhancing Utility of Differentially Private Synthetic Data over Dynamic Database with Efficient Updates
 
-## Notice
-Currently, this repository is not fully prepared, the code may contain bugs or unproperly function implementation and may be modified frequently.
-
-This repo will be ready by Jul 24, 11:59 PM AoE. 
-
 ## Introduction
 
 This code base contains two implementation examples of EveSyn, implemented with two state-of-the-art PGM-based data synthesis mechanisms based on graph model as the OriginalSyn function, which are the MWEM+PGM and AIM.
