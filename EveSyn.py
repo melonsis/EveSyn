@@ -22,9 +22,9 @@ def load_config(config_path):
 
 # Determine whether the updated data is incremental
 def have_intersection(df1, df2):
-    # 检查 previous_dataset 是否是 current_dataset 的子集
+    # Check whether the previous_dataset is a subset of current_dataset
     is_subset = df1.isin(df2).all().all()
-    # 检查列名称是否一致
+    # Check the column
     columns_match = set(df1.columns) == set(df2.columns)
     return is_subset and columns_match
 
