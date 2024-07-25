@@ -22,8 +22,11 @@ def load_config(config_path):
 
 # Determine whether the updated data is incremental
 def have_intersection(df1, df2):
-    intersection = pd.merge(df1, df2, how='inner')
-    return not intersection.empty
+    # 检查 previous_dataset 是否是 current_dataset 的子集
+    is_subset = df1.isin(df2).all().all()
+    # 检查列名称是否一致
+    columns_match = set(df1.columns) == set(df2.columns)
+    return is_subset and columns_match
 
 # Determine each g_i
 def domainSize(dataObj, saved_marginals):
@@ -42,6 +45,7 @@ def ETuning(budget, w, strategy):
     # For high-initial strategy, we allocate half of the remaining budget for each timestamp
     if strategy == "high-initial":
         init_budget = budget / 2
+    # For balance strategy, we allocate a balance budget across all timestamps
     elif strategy == "balance":
         init_budget = budget / w
     else:
@@ -104,7 +108,8 @@ if __name__ == "__main__":
             print("Loaded config from config file!")
         else:
             print("Config file not found, turn to use default/inputted config")
-    # Loading initial data
+    # Loading initial data for process workload and domain
+    # Note that this dataset will not using in experiments
     data = Dataset.load(args.dataset, args.domain)
     prng = np.random
     # EveSyn: Prepare Workload
@@ -124,16 +129,17 @@ if __name__ == "__main__":
     attr_name.append("TimeConsume")
     log_file_name = evmechanisms.evtools.log_init(attr_name=attr_name)
     log_file = evmechanisms.evtools.info_logger("======Experiment START======")
-    # exp_results = []
     dataset_name = args.dataname
     budget_remain = args.epsilon
+    #List for logging used budgets
     budget_used = []
     # A list for storage g_i
     g_list = []
     # Eta for invokes OriginalSyn
     eta = 0
+
     # We set the test for 10 rounds (2w) in this example
-    # Log the results
+    # Example experiment start
     for i in range(1,11):
         print("Starting data synthesis at timestamp"+str(i)+" ...",end="",flush=True)
         # Load previous data for further updates
@@ -143,12 +149,15 @@ if __name__ == "__main__":
         # Initial two timestamps
         if i<=2:
             # APBM initialized allocation with ETuning
+            # We use high-initial strategy in this example
             init_budget = ETuning(budget=budget_remain, w=args.wsize, strategy="high-initial")
+            # Allocate budget to current timestamp
             mech_para = evmechanisms.evexp.args_handler(args, init_budget, log_file=log_file)
             # Calling original_syn
             synth_data, exp_results = evmechanisms.evexp.original_syn(mech_para = mech_para, mech_type=args.mech, data=current_dataset, workload=workload)
             synth_data.df.to_csv("./data/synth/synth_"+str(i)+".csv", index=False)
             print("Done")
+            # Consume the allocated budget
             budget_remain = budget_remain - init_budget
             # Catch used budgets
             budget_used.append(init_budget)
@@ -157,6 +166,7 @@ if __name__ == "__main__":
             exp_results.insert(0, str(budget_remain))
             exp_results.insert(0, dataset_name+"_Original")
             evmechanisms.evtools.log_append(exp_results, log_file_name[0], log_file_name[1])
+            # Calculate and log g_i
             g_list.append(domainSize(dataObj=data, saved_marginals=args.cliques))
             continue
         
@@ -172,6 +182,7 @@ if __name__ == "__main__":
             exp_results.insert(0, str(budget_remain))
             exp_results.insert(0, dataset_name+"_Optimized")
             evmechanisms.evtools.log_append(exp_results, log_file_name[0], log_file_name[1])
+            # Calculate and log g_i
             g_list.append(domainSize(dataObj=data, saved_marginals=args.cliques))
             # Determine remain budgets using only recent w budget_used
             if i > args.wsize:
@@ -192,6 +203,7 @@ if __name__ == "__main__":
             # Invoking original_syn
             synth_data, exp_results = evmechanisms.evexp.original_syn(mech_para = mech_para, mech_type=args.mech, data=current_dataset,workload=workload)
             synth_data.df.to_csv("./data/synth/synth_"+str(i)+".csv", index=False)
+            # Consume the allocated budget
             budget_remain = budget_remain - budget_tuned
             budget_used.append(budget_tuned)
             # Determine remain budgets using only recent w budget_used
@@ -203,17 +215,18 @@ if __name__ == "__main__":
             exp_results.insert(0, str(budget_remain))
             exp_results.insert(0, dataset_name+"_Original")
             evmechanisms.evtools.log_append(exp_results, log_file_name[0], log_file_name[1])
+            # Calculate and log g_i
             g_list.append(domainSize(dataObj=data, saved_marginals=args.cliques))
             eta = 0
             continue
 
 
         # Determine whether the updated data is incremental only
-        if not have_intersection(previous_dataset.df, current_dataset.df):
+        if have_intersection(previous_dataset.df, current_dataset.df):
             # Get the incremetal part of updated dataset
-            updated_df = pd.merge(previous_dataset.df, current_dataset.df, how='outer', indicator=True).query('_merge=="right_only"').drop('_merge', axis=1)
+            updated_df = current_dataset.df.iloc[len(previous_dataset):].reset_index(drop=True)
             # Synth the data
-            synth_data, exp_results = evmechanisms.evexp.update(mech_para=mech_para, mech_type=args.mech, data = Dataset(updated_df,args.domain), last_synth=last_synth, workload=workload)
+            synth_data, exp_results, budget_error = evmechanisms.evexp.update(mech_para=mech_para, mech_type=args.mech, data = Dataset(updated_df,args.domain), last_synth=last_synth, workload=workload)
             synth_new = pd.concat(last_synth.df, synth_data.df)
             synth_new.to_csv("./data/synth/synth_"+str(i)+".csv")
             # Catch used budgets, here is 0
@@ -228,6 +241,7 @@ if __name__ == "__main__":
             exp_results.insert(0, str(budget_remain))
             exp_results.insert(0, dataset_name+"_Optimized")
             evmechanisms.evtools.log_append(exp_results, log_file_name[0], log_file_name[1])
+            # Calculate and log g_i
             g_list.append(domainSize(dataObj=data, saved_marginals=args.cliques))
             continue
         # Normal update process start
@@ -261,6 +275,7 @@ if __name__ == "__main__":
                 budget_remain = args.epsilon - sum(budget_used[0:i+1])
             
             # Log the results
+            exp_results.insert(0, str(budget_tuned))
             exp_results.insert(0, str(budget_remain))
             exp_results.insert(0, dataset_name+"_Optimized")
             evmechanisms.evtools.log_append(exp_results, log_file_name[0], log_file_name[1])
