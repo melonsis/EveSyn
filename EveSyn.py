@@ -269,8 +269,8 @@ if __name__ == "__main__":
                 eta += 1
 
             # Determine remain budgets using only recent w budget_used
-            if i > args.wsize:
-                budget_remain = args.epsilon - sum(budget_used[i-args.wsize:i+1])
+            if i >= args.wsize:
+                budget_remain = args.epsilon - sum(budget_used[i-args.wsize+1:i+1])
             else:
                 budget_remain = args.epsilon - sum(budget_used[0:i+1])
             
